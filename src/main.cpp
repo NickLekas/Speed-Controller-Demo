@@ -5,11 +5,13 @@
 
 #include <pins.h>
 
+//menus screens
 void mainMenu();
 void speedMenu();
 void slaveScreen();
-
 void titleScreen();
+
+//operation functions
 void runMotor();
 void fineAdjustment();
 void getEncoder();
@@ -61,13 +63,14 @@ void setup() {
 }
 
 void loop() {
+  //the main loop is run in a seperate funcion
   mainMenu();
 }
 
 //draws the title screen before starting the program
 void titleScreen() {
   lcd.clear();
-  //draws the team name
+  //draws the team name centered on the screen
   lcd.setCursor(1, 0);
   lcd.print("4488 Shockwave");
   //draws the device name
@@ -90,17 +93,22 @@ void titleScreen() {
   lcd.clear();
 }
 
-//checks for encoder change
+//checks for encoder change and direction of change
 void getEncoder() {
   //stores the current encoder pin A value
   n = digitalRead(encoderPinA);
   
   //checks if the encoder changed position
+  //encoder position starts at 0
+  //a CW turn increases the postion count
+  //a CCW turn decreases the position count
   if ((encoderPinALast == LOW) && (n == HIGH)) {
     //checks the state of pin B
     //if low, the encoder turned CCW
     //if high, the encoder turned CW
     if (digitalRead(encoderPinB) == LOW) {
+      //fine adjustment allows for incraments of 1
+      //course adjustment is in incraments of 10
       if(fineAdjust == true) {
         encoderValue--;
       }
@@ -134,13 +142,15 @@ void fineAdjustment() {
     //sets the draw position to the begining of the current adjustment mode
     lcd.setCursor(5, 1);
     
-    //inverts the adjustment mode (i.e. course to fine and fine to course)
+    //changes the adjustment mode (i.e. course to fine and fine to course)
     if(fineAdjust == false) {
       fineAdjust = true;
       adjustment = "Fine";
 
       //prints the new adjstment mode
       lcd.print(adjustment);
+      //draws 2 blank characters becasue "fine" is 2 characters shorter than "course" 
+      //the "se" needs to be erased if it's there
       lcd.print("  ");
     }
     else {
@@ -185,7 +195,8 @@ void drawControlScreen() {
     lcd.print(adjustment);
 }
 
-//controlls the motro speed and runs the motor when the button is pressed
+//controlls the motor speed and runs the motor when the button is pressed
+//many checks to make sure the 
 void controlScreen() {
   int i, PWMvalue, rPWMvalue;
 
@@ -214,29 +225,34 @@ void controlScreen() {
       newValue = false;
     }
 
-    //starts the motor only if the the controller is the master and the deadman switch is pressed for safety
+    //starts tmothe or only if the the controller is the master and the deadman switch is pressed for safety
     while(slave == false && digitalRead(deadMan) == LOW) {
       controller.attach(PWMpin);
       controller2.attach(PWMpin2);
 
-      //tells the user to wait while the motor ramps up to speed
+      //tells the operator to wait while the motor ramps up to speed
       lcd.setCursor(0, 1);
       lcd.print("Wait       ");
 
+      //clears the currently displayed motor speed
       lcd.setCursor(7, 0);
       lcd.print("     ");
 
       //ramps the motor up to speed
       //2 cases for a postive and negative speed
       for(i = 0; i <= abs(encoderValue); i++) {
+        //verifies that the deadman switch is pressed and the operator is still alive
+        //if the operator releases the button, disable the PWM output
         if(digitalRead(deadMan) != LOW) {
           controller.detach();
           controller2.detach();
           break;
         }
 
+        //moves the cursor to the location of the motor speed
         lcd.setCursor(7, 0);
-          
+        
+        //if the motor is set to reverse
         if(encoderValue < 0) {
           PWMvalue = -i * 5 + 1500;
           rPWMvalue = i * 5 + 1500;
@@ -244,21 +260,29 @@ void controlScreen() {
           controller2.writeMicroseconds(rPWMvalue);
           lcd.print(-i);
         }
-        else {
+        //if the motor is ser to forward
+        else if(encoderValue > 0) {
           PWMvalue = i * 5 + 1500;
           rPWMvalue = -i * 5 + 1500;
           controller.writeMicroseconds(PWMvalue);
           controller2.writeMicroseconds(rPWMvalue);
           lcd.print(i);
         }
+        //something has gone terribly wrong, stop the motor
+        else {
+          controller.detach();
+          controller2.detach();
+          break;
+        }
       
+        //print the current motor speed
         lcd.print("%");
         delay(25);
       }
 
 
       if(digitalRead(deadMan) == LOW) {
-        //tells the user the motor is at speed
+        //tells the operator the motor is at speed
         lcd.setCursor(12, 1);
         lcd.print("    ");
         lcd.setCursor(0, 1);
@@ -279,7 +303,7 @@ void controlScreen() {
       //debounces the button
       delay(buttonDelay);
 
-      //redraws the control screen fo the user to edit
+      //redraws the control screen fo the operator to edit
       drawControlScreen();
     }
   }
@@ -287,7 +311,7 @@ void controlScreen() {
 
 //The screen that is drawn when slave mode is selected
 void slaveScreen() {
-  //tells the user to use the master controller for speed control
+  //tells the operator to use the master controller for speed control
   lcd.setCursor(1, 0);
   lcd.print("Use the master");
   lcd.setCursor(0, 1);
@@ -299,7 +323,7 @@ void slaveScreen() {
   }
 }
 
-//lets the user select which mode to use
+//lets the operator select which mode to use
 void mainMenu() {
   //draws the 2 menu options
   lcd.setCursor(1, 0);
@@ -307,7 +331,7 @@ void mainMenu() {
   lcd.setCursor(1, 1);
   lcd.print("Slave");
 
-  //loops until the user makes a mode selection
+  //loops until the operator makes a mode selection
   while(true) {
     //draws the cursor at the encoder position
     lcd.setCursor(0, encoderValue);
@@ -334,7 +358,7 @@ void mainMenu() {
         lcd.print(">");
       }
       else if(encoderValue == 1) {
-        //movs the cursor the the seconds line
+        //moves the cursor the the second line
         lcd.setCursor(0, 0);
         lcd.print(" ");
         lcd.setCursor(0, 1);
@@ -348,6 +372,7 @@ void mainMenu() {
     if(digitalRead(encoderButton) == LOW) {
       delay(buttonDelay);
 
+      //master
       if(encoderValue == 0) {
         //changes the slave state
         slave = false;
@@ -355,6 +380,7 @@ void mainMenu() {
         //starts the motor controller program
         controlScreen();
       }
+      //slave
       else if(encoderValue == 1) {
         //sets the slave state just incase
         slave = true;
